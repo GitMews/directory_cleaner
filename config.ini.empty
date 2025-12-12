@@ -1,0 +1,12 @@
+[general]
+target_directory =
+log_directory =
+keyword = WARNING
+
+[email]
+enabled = true
+smtp_host =
+smtp_port =
+smtp_user =
+smtp_password =
+recipient =
