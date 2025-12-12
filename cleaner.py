@@ -1,6 +1,8 @@
 import configparser
 from datetime import datetime
 from pathlib import Path
+import smtplib
+from email.message import EmailMessage
 
 # Get config file
 CONFIG_FILE = Path("config.ini")
@@ -34,7 +36,7 @@ def get_log_file_path(log_dir: Path):
 def write_log(log_file: Path, files: list[Path]):
     with log_file.open("w", encoding="utf-8") as f:
         f.write(datetime.now().strftime("%Y-%m-%d %H:%M:%S") + "\n")
-        f.write(f"Found {len(files)} file(s)\n")
+        f.write(f"Deleted {len(files)} file(s)\n")
 
         for file in files:
             f.write(f"- {file.name}\n")
@@ -42,6 +44,37 @@ def write_log(log_file: Path, files: list[Path]):
 # Find keyword
 def find_keyword_matches(files: list[Path], keyword: str):
     return [f for f in files if keyword in f.name]
+
+# Delete files
+def delete_files(files: list[Path]):
+    for file in files:
+        try:
+            file.unlink()
+            print(f"Deleted: {file.name}")
+        except Exception as e:
+            print(f"Failed to delete {file.name}: {e}")
+
+# Send mail
+def send_alert_email(config, matched_file: Path):
+    str_name = str(matched_file.name)
+
+    msg = EmailMessage()
+    msg["Subject"] = "Directory cleaner alert: WARNING file " +  str_name + " deleted"
+    msg["From"] = config["email"]["smtp_user"]
+    msg["To"] = config["email"]["target"]
+
+    body = "The following file containing WARNING has been deleted:\n\n"
+    body += str(matched_file.name)
+
+    msg.set_content(body)
+
+    with smtplib.SMTP(config["email"]["smtp_host"], int(config["email"]["smtp_port"])) as server:
+        server.starttls()
+        server.login(
+            config["email"]["smtp_user"],
+            config["email"]["smtp_password"]
+        )
+        server.send_message(msg)
 
 # Main function
 def main():
@@ -55,7 +88,7 @@ def main():
     ensure_log_directory(log_dir)
     write_log(get_log_file_path(log_dir), files)
 
-    # Alert if needed
+    # Get relevant files
     keyword = config["general"]["keyword"]
     matches = find_keyword_matches(files, keyword)
     if matches:
@@ -65,5 +98,21 @@ def main():
     else:
         print(f"No file contains keyword '{keyword}'")
 
+    # Delete files if needed
+    if files:
+        delete_files(files)
+    else:
+        print("No files to delete")
+
+    # Send email if needed
+    if matches and config["email"].getboolean("enabled"):
+        for f in matches :
+            try:
+                send_alert_email(config, f)
+                print(f"Alert email sent for : {f.name}")
+            except Exception as e:
+                print(f"Failed to send alert email: {e}")
+
+# Run
 if __name__ == "__main__":
     main()
