@@ -3,6 +3,11 @@ from datetime import datetime
 from pathlib import Path
 import smtplib
 from email.message import EmailMessage
+import logging
+from logging import Logger
+
+# Logger
+LOGGER = logging.getLogger("directory_cleaner")
 
 # Get config file
 CONFIG_FILE = Path("config.ini")
@@ -50,9 +55,9 @@ def delete_files(files: list[Path]):
     for file in files:
         try:
             file.unlink()
-            print(f"Deleted: {file.name}")
+            LOGGER.info(f"Deleted: {file.name}")
         except Exception as e:
-            print(f"Failed to delete {file.name}: {e}")
+            LOGGER.error(f"Failed to delete {file.name}: {e}")
 
 # Send mail
 def send_alert_email(config, matched_file: Path):
@@ -76,8 +81,21 @@ def send_alert_email(config, matched_file: Path):
         )
         server.send_message(msg)
 
+# Setup logger
+def setup_logger():
+    logging.basicConfig(
+        filename="directory_cleaner.log",
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(message)s",
+        encoding="utf-8",
+        filemode="w")
+
 # Main function
 def main():
+    # Run logs
+    setup_logger()
+    LOGGER.info("Directory cleaner started")
+
     # Setup
     config = load_config()
     target_dir = Path(config["general"]["target_directory"]).resolve()
@@ -92,26 +110,26 @@ def main():
     keyword = config["general"]["keyword"]
     matches = find_keyword_matches(files, keyword)
     if matches:
-        print(f"Keyword '{keyword}' found in {len(matches)} file(s):")
+        LOGGER.info(f"Keyword '{keyword}' found in {len(matches)} file(s):")
         for f in matches:
-            print(" -", f.name)
+            LOGGER.info(f.name)
     else:
-        print(f"No file contains keyword '{keyword}'")
+        LOGGER.info(f"No file contains keyword '{keyword}'")
 
     # Delete files if needed
     if files:
         delete_files(files)
     else:
-        print("No files to delete")
+        LOGGER.info("No files to delete")
 
     # Send email if needed
     if matches and config["email"].getboolean("enabled"):
         for f in matches :
             try:
                 send_alert_email(config, f)
-                print(f"Alert email sent for : {f.name}")
+                LOGGER.info(f"Alert email sent for : {f.name}")
             except Exception as e:
-                print(f"Failed to send alert email: {e}")
+                LOGGER.error(f"Failed to send alert email: {e}")
 
 # Run
 if __name__ == "__main__":
